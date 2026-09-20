@@ -1,0 +1,23 @@
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# Downloaded OpenVINO Model (Big Files)
+whisper-large-v3-turbo-fp16-ov/
+
+# Temporary and Output files
+temp_audio.wav
+*.tmp
+*.srt
+*.txt
+
+# Python Cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# IDE configurations
+.vscode/
+.idea/
+
