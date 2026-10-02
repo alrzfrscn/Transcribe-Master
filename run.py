@@ -6,7 +6,8 @@ Features:
 - 16 kHz mono extraction via FFmpeg with full error logging.
 - Sliding-window chunking (default 30 s window / 2 s overlap) so words
   on chunk borders are not cut or duplicated.
-- Overlap trimming + global merge/dedup of timestamps (time + word-level).
+- Overlap trimming + global merge/dedup of timestamps (time + word-level,
+  up to 6 boundary words) and phantom-segment filtering.
 - Splitting of over-long subtitles (max ~7 s / ~120 chars) for readable SRT.
 - Correct SRT time formatting with millisecond carry handling.
 - Device auto-fallback (GPU -> CPU); kernels compile in-memory on the fly.
@@ -75,7 +76,13 @@ MAX_SUB_DURATION_SEC = 7.0
 MAX_SUB_CHARS = 120
 MIN_CHUNK_SEC = 0.3  # tails shorter than this are skipped (hallucination-prone)
 MERGE_TOLERANCE_SEC = 0.20  # overlap tolerance when merging segments
-MAX_BOUNDARY_WORDS = 4  # max repeated words stripped at chunk joints
+MAX_BOUNDARY_WORDS = 6  # max repeated words stripped at chunk joints
+
+# Phantom-hallucination filter: Whisper emits sparse confident-sounding
+# fragments ("Thank you", single words) over long silent/music stretches.
+# Segments this sparse over this long a span are discarded as hallucinations.
+PHANTOM_MAX_WORDS = 2
+PHANTOM_MIN_DURATION_SEC = 6.0
 
 # Extra punctuation (beyond ASCII) stripped for word-level dedup comparisons.
 _EXTRA_PUNCT = "«»‹›‘’“”…–—‐-؟،؛："
@@ -419,39 +426,90 @@ def _normalize_word(word: str) -> str:
 
 
 def _strip_leading_overlap(prev_text: str, cur_text: str, max_words: int = MAX_BOUNDARY_WORDS) -> str:
-    """Strip up to `max_words` repeated leading words from `cur_text`.
+    """Strip a repeated boundary phrase from the start of `cur_text`.
 
-    Compares the trailing words of `prev_text` with the leading words of
-    `cur_text` (case-insensitive, punctuation-insensitive). Returns `cur_text`
-    with the longest matching prefix (1..max_words) removed, or unchanged
-    when there is no match. Returns "" when `cur_text` is fully duplicated.
+    If any trailing phrase of `prev_text` (up to `max_words` words) appears
+    at the beginning of `cur_text` — compared case- and
+    punctuation-insensitively — it is stripped completely. The longest match
+    wins, so multi-word clauses (e.g. "be ruled out Why", "cells and thus
+    by taking", "taper off down") are removed in one pass, even when the
+    previous segment continues past the repeated phrase (e.g. "... down
+    slowly"). Returns `cur_text` unchanged when there is no match, or ""
+    when fully duplicated.
     """
     prev_words: List[str] = str(prev_text).split()
     cur_words: List[str] = str(cur_text).split()
     if not prev_words or not cur_words:
         return cur_text
+    norm_prev: List[str] = [_normalize_word(w) for w in prev_words]
+    norm_cur: List[str] = [_normalize_word(w) for w in cur_words]
+    # Stage 1: suffix(N) of prev == prefix(N) of cur, longest first.
     limit: int = min(max_words, len(prev_words), len(cur_words))
     for n in range(limit, 0, -1):
-        prev_tail: List[str] = [_normalize_word(w) for w in prev_words[-n:]]
-        cur_head: List[str] = [_normalize_word(w) for w in cur_words[:n]]
-        if all(p and p == c for p, c in zip(prev_tail, cur_head)):
+        if all(p and p == c for p, c in zip(norm_prev[-n:], norm_cur[:n])):
             return " ".join(cur_words[n:]).strip()
+    # Stage 2: the repeated phrase sits inside prev's tail but prev continues
+    # past it. Search prev's trailing window for the longest leading run of
+    # cur (minimum 2 words — single common words like "the" must not trigger
+    # stripping on their own).
+    tail: List[str] = norm_prev[-2 * max_words:]
+    max_k: int = min(max_words, len(cur_words))
+    for k in range(max_k, 1, -1):
+        head: List[str] = norm_cur[:k]
+        if not all(head):
+            continue
+        for s in range(len(tail) - k + 1):
+            if tail[s:s + k] == head:
+                return " ".join(cur_words[k:]).strip()
     return cur_text
+
+
+def is_phantom_segment(start: float, end: float, text: str) -> bool:
+    """Return True for hallucination-like segments.
+
+    Whisper tends to emit sparse fragments ("Thank you", single words) with
+    confident timestamps stretched across long silent/music spans. A segment
+    with very few words over an abnormally long duration is a phantom.
+    """
+    words: List[str] = str(text).split()
+    return len(words) <= PHANTOM_MAX_WORDS and (float(end) - float(start)) > PHANTOM_MIN_DURATION_SEC
+
+
+def filter_phantom_segments(items: List[Dict[str, Any]]) -> Tuple[List[Dict[str, Any]], int]:
+    """Split out phantom segments. Returns (kept, dropped_count)."""
+    kept: List[Dict[str, Any]] = []
+    dropped: int = 0
+    for item in items:
+        if is_phantom_segment(float(item["start"]), float(item["end"]), str(item.get("text", ""))):
+            dropped += 1
+            continue
+        kept.append(item)
+    return kept, dropped
 
 
 def merge_timings(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Sort by start time and resolve overlaps/duplicates globally.
 
-    Two-stage dedup:
+    Three-stage dedup:
     1. Time-based: contained segments are dropped, partial overlaps clamped.
-    2. Word-based: 1-4 repeated boundary words (case/punctuation-insensitive)
-       re-emitted across a window joint are stripped from the later segment.
+    2. Word-based: any repeated trailing phrase of the previous segment
+       (up to MAX_BOUNDARY_WORDS words, case/punctuation-insensitive)
+       re-emitted at the start of the next one is stripped completely.
+    3. Phantom-based: sparse fragments (<=2 words over >6 s) typical of
+       Whisper hallucinations on silence/music are discarded.
     """
-    cleaned = [
-        {"start": float(i["start"]), "end": float(i["end"]), "text": str(i.get("text", "")).strip()}
-        for i in items
-        if str(i.get("text", "")).strip() and float(i["end"]) > float(i["start"])
-    ]
+    cleaned: List[Dict[str, Any]] = []
+    for i in items:
+        text: str = str(i.get("text", "")).strip()
+        if not text:
+            continue
+        start: float = float(i["start"])
+        end: float = float(i["end"])
+        if end <= start:
+            continue
+        if is_phantom_segment(start, end, text):
+            continue
+        cleaned.append({"start": start, "end": end, "text": text})
     cleaned.sort(key=lambda x: (x["start"], x["end"]))
     merged: List[Dict[str, Any]] = []
     for cur in cleaned:
@@ -809,6 +867,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
         if not args.no_srt_split:
             segments = split_long_segments(segments)
+
+        # Post-split phantom sweep: splitting a long sparse segment can emit
+        # short-text pieces over long spans — drop those hallucinations too.
+        segments, phantom_dropped = filter_phantom_segments(segments)
+        if phantom_dropped:
+            print(f"[INFO] Discarded {phantom_dropped} phantom segment(s) (<=2 words over >6s).")
 
         print("\nWriting output files...")
         full_text = "\n".join(s["text"] for s in segments)
