@@ -2,15 +2,36 @@
 .venv/
 venv/
 ENV/
+.env
 
-# Downloaded OpenVINO Model (Big Files)
+# Downloaded OpenVINO Model (Big Files) + caches
 whisper-large-v3-turbo-fp16-ov/
+.ov_cache/
+.cache/
+
+# Agent worktrees / state
+.kilo/
+.kilocode/
 
 # Temporary and Output files
 temp_audio.wav
 *.tmp
 *.srt
 *.txt
+!requirements.txt
+
+# Media inputs / test files (never commit binaries)
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.webm
+*.wav
+*.mp3
+*.m4a
+*.ogg
+*.flac
+tree_structure.txt
 
 # Python Cache
 __pycache__/

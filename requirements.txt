@@ -1,0 +1,11 @@
+# Tested with: Python 3.11 + openvino-genai 2026.4 (Windows, Intel Lunar Lake)
+# Python >= 3.10 required.
+openvino-genai>=2024.5.0
+openvino-tokenizers>=2024.5.0
+
+# Hugging Face model downloader
+huggingface_hub>=0.20.0
+
+# Audio handling (sliding-window wav streaming in run.py)
+numpy>=1.26
+soundfile>=0.12
