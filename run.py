@@ -53,7 +53,7 @@ ENCODER_FILENAME = "openvino_encoder_model.xml"
 SAMPLE_RATE = 16000
 DEFAULT_CHUNK_SEC = 30.0
 DEFAULT_OVERLAP_SEC = 2.0  # optimal for 30 s Whisper windows
-DEFAULT_LANG = "fa"  # used for non-interactive runs when --lang is omitted
+DEFAULT_LANG = "en"  # used for non-interactive runs when --lang is omitted
 
 # Silent-chunk gate: chunks quieter than this peak amplitude are pure
 # dead air — skipping pipeline.generate() prevents phantom-loop hallucinations.
@@ -63,8 +63,8 @@ SILENCE_PEAK_THRESHOLD = 1e-3
 # The model itself supports ~100 Whisper language codes; the menu lists the
 # most common ones and offers an "other" free-text choice for the rest.
 LANGUAGE_MENU: Tuple[Tuple[str, str, str], ...] = (
-    ("1", "English (en)", "en"),
-    ("2", "Persian (fa) [default]", "fa"),
+    ("1", "English (en) [default]", "en"),
+    ("2", "Persian (fa)", "fa"),
     ("3", "Arabic (ar)", "ar"),
     ("4", "Turkish (tr)", "tr"),
     ("5", "Auto-detect", "auto"),
@@ -204,13 +204,13 @@ def prompt_language_menu() -> Optional[str]:
     by_key = {key: value for key, _label, value in LANGUAGE_MENU}
     while True:
         try:
-            choice = input("Enter choice (1-6) [Default: 2]: ").strip().lower()
+            choice = input("Enter choice (1-6) [Default: 1]: ").strip().lower()
         except EOFError:
-            print("\n[INFO] Language set to: Persian (fa) [default]")
-            return "<|fa|>"
-        if choice in ("", "2"):
-            print("[INFO] Language set to: Persian (fa)")
-            return "<|fa|>"
+            print("\n[INFO] Language set to: English (en) [default]")
+            return "<|en|>"
+        if choice in ("", "1"):
+            print("[INFO] Language set to: English (en)")
+            return "<|en|>"
         if choice in by_key and by_key[choice] != "other":
             value = by_key[choice]
             token = normalize_language(value)
@@ -222,8 +222,8 @@ def prompt_language_menu() -> Optional[str]:
             except EOFError:
                 code = ""
             if not code:
-                print("[INFO] Language set to: Persian (fa) [default]")
-                return "<|fa|>"
+                print("[INFO] Language set to: English (en) [default]")
+                return "<|en|>"
             token = normalize_language(code)
             print(f"[INFO] Language set to: {code} ({token or 'auto-detect'})")
             return token
@@ -492,9 +492,12 @@ def merge_timings(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
 
     Three-stage dedup:
     1. Time-based: contained segments are dropped, partial overlaps clamped.
-    2. Word-based: any repeated trailing phrase of the previous segment
-       (up to MAX_BOUNDARY_WORDS words, case/punctuation-insensitive)
-       re-emitted at the start of the next one is stripped completely.
+    2. Word-based: any repeated trailing phrase found in the trailing
+       context of up to 3 previously merged segments (up to
+       MAX_BOUNDARY_WORDS words, case/punctuation-insensitive) re-emitted
+       at the start of the next one is stripped completely. The wider
+       context matters because the immediate predecessor may be a 1-2 word
+       fragment, pushing the repeated clause's head further back.
     3. Phantom-based: sparse fragments (<=2 words over >6 s) typical of
        Whisper hallucinations on silence/music are discarded.
     """
@@ -527,7 +530,11 @@ def merge_timings(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
                 continue
         # Word-level joint dedup (applies with or without time overlap,
         # since the model may re-emit boundary words with shifted stamps).
-        deduped: str = _strip_leading_overlap(prev["text"], cur["text"])
+        # Context spans up to 3 prior segments: the immediate predecessor may
+        # be a 1-2 word fragment (e.g. "Why?"), leaving the repeated clause's
+        # head (e.g. "be ruled out.") back in merged[-2] or merged[-3].
+        prev_context: str = " ".join(s["text"] for s in merged[-3:])
+        deduped: str = _strip_leading_overlap(prev_context, cur["text"])
         if not deduped:
             continue
         cur["text"] = deduped

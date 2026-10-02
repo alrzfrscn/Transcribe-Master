@@ -56,7 +56,7 @@ python download_model.py
 ## 🚀 راهنمای استفاده
 
 ### ۱. اجرای تعاملی (ساده‌ترین روش):
-اگر بدون هیچ آرگومانی اسکریپت را اجرا کنید، برنامه مسیر فایل و سپس زبان را با منوی خوانا از شما می‌پرسد:
+اگر بدون هیچ آرگومانی اسکریپت را اجرا کنید، برنامه مسیر فایل و سپس زبان را با منوی خوانا از شما می‌پرسد (گزینه پیش‌فرض منو: انگلیسی):
 ```powershell
 python run.py
 ```
@@ -68,17 +68,17 @@ python run.py "C:\Media\lecture.mp4"
 
 ### ۳. اجرای خط فرمانی و خودکار (مناسب اسکریپت‌نویسی و اتوماسیون):
 ```powershell
+# استخراج به زبان انگلیسی (پیش‌فرض)
+python run.py lecture.mp4 --lang en
+
 # استخراج به زبان فارسی
 python run.py lecture.mp4 --lang fa
-
-# استخراج به زبان انگلیسی
-python run.py lecture.mp4 --lang en
 
 # تشخیص خودکار زبان + ذخیره در پوشه اختصاصی
 python run.py lecture.mp4 --lang auto --output-dir ./results
 
 # اجرا صریح روی پردازنده اصلی (CPU)
-python run.py lecture.mp4 --lang fa --device CPU
+python run.py lecture.mp4 --lang en --device CPU
 ```
 
 ---
@@ -96,7 +96,7 @@ python run.py lecture.mp4 --lang fa --device CPU
 | فلگ | مقدار پیش‌فرض | توضیحات |
 | :--- | :---: | :--- |
 | `input` / `--input` | `None` | مسیر فایل صوتی یا تصویری ورودی (در صورت عدم ارسال، درخواست می‌شود) |
-| `--lang` | تعاملی / `fa` | کد زبان گفتار (`fa`, `en`, `ar`, `tr`, `auto` یا هر کد دیگر ویسپر) |
+| `--lang` | تعاملی (پیش‌فرض منو: `en`) / `en` | کد زبان گفتار (`en`, `fa`, `ar`, `tr`, `auto` یا هر کد دیگر ویسپر) |
 | `--device` | `auto` | انتخاب سخت‌افزار پردازش (`auto`, `GPU`, `NPU`, `CPU`) |
 | `--model-dir` | `./whisper-large-v3-turbo-fp16-ov` | مسیر پوشه فایل‌های مدل کامپایل‌شده OpenVINO |
 | `--output-dir` | مسیر فایل ورودی | مسیر سفارشی برای ذخیره‌سازی فایل‌های خروجی |
