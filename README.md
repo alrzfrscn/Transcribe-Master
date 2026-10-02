@@ -35,7 +35,7 @@ winget install Gyan.FFmpeg
 ```powershell
 # کلون کردن ریپازیتوری
 git clone https://github.com/alrzfrscn/Transcribe-Master.git
-cd whisper-openvino-subtitles
+cd Transcribe-Master
 
 # ساخت و فعال‌سازی محیط مجازی
 python -m venv .venv
