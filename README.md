@@ -1,122 +1,131 @@
-# 🎙️ Transcribe Master — Whisper OpenVINO (beta version)
+# 🎙️ Transcribe Master — Whisper OpenVINO (Beta)
 
-ابزار فوق‌سریع و سبک برای تبدیل صوت و ویدیو به متن (`TXT`) و زیرنویس زمان‌بندی‌شده (`SRT`) با بهره‌گیری از موتور شتاب‌دهنده **Intel OpenVINO** و مدل قدرتمند **Whisper Large V3 Turbo (FP16)**.
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![OpenVINO](https://img.shields.io/badge/OpenVINO-2025%2B-purple.svg)](https://github.com/openvinotoolkit/openvino)
+[![Model](https://img.shields.io/badge/Model-Whisper%20Large%20v3%20Turbo%20FP16-green.svg)](https://huggingface.co/openai/whisper-large-v3-turbo)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
----
+[🇮🇷 نسخه فارسی (Persian Version)](README_FA.md)
 
-## ⚡ سازگاری سخت‌افزاری (Hardware Compatibility)
-
-این ابزار با معماری هیبریدی و زنجیره انتخاب خودکار سخت‌افزار (`GPU -> NPU -> CPU`) طراحی شده است:
-- **بهینه‌سازی ویژه برای سخت‌افزار اینتل:** شتاب‌گیری حداکثری روی گرافیک‌های داخلی و مجزای **Intel Arc (معماری Xe / Xe2 مانند Arc 140V در سری Core Ultra / Lunar Lake)** و واحدهای **NPU (Intel AI Boost)**.
-- **پشتیبانی کامل از سایر سیستم‌ها (Universal Fallback):** در صورت عدم وجود سخت‌افزار اینتل، برنامه بدون ارور و کاملاً خودکار روی **پردازنده (CPU)** اجرا می‌شود و با پردازنده‌های **AMD Ryzen** و سایر CPUهای مدرن به لطف دستورالعمل‌های برداری یکپارچه است.
-
----
-
-## ✨ ویژگی‌های برجسته و مزایای فنی
-
-- **استریم پیوسته صدا (Zero-RAM Leak):** برخلاف اسکریپت‌های معمول که فایل چندساعته را یک‌جا در حافظه لود می‌کنند، پردازش به صورت پنجره‌های استریم از روی دیسک انجام می‌شود و مصرف RAM همواره **زیر چند مگابایت** باقی می‌ماند.
-- **حذف هوشمند تکرار در مرز پنجره‌ها (Lexical Deduplication):** بهره‌گیری از پنجره لغزان **۳۰ ثانیه با ۲ ثانیه اورلپ** همراه با مقایسه تطبیقی کلمات مرزی (حتی با علائم نگارشی فارسی مثل « » ، ؟ ؛) تا کلمات در مرز چانک‌ها دوبار در زیرنویس تکرار نشوند.
-- **قفل هوشمند زبان (Language Drift Lock):** جلوگیری از تغییر ناگهانی زبان زیرنویس به زبان‌های دیگر در صورت سکوت یا بیان اصطلاحات تخصصی انگلیسی در ویس‌های فارسی.
-- **رد کردن هوشمند سکوت (Silence Skip):** محاسبه انرژی امواج صوتی (RMS) و رد کردن بخش‌های بی‌صدا جهت جلوگیری از توهم و تایپ متن‌های فانتوم توسط ویسپر.
-- **زیرنویس استاندارد سینمایی (Smart Subtitle Splitting):** شکستن خودکار سگمنت‌های طولانی به بازه‌های خوانا (حداکثر ۷ ثانیه و ۱۲۰ کاراکتر) مطابق استانداردهای تدوین و جلوگیری از اشغال تمام صفحه نمایش.
-- **رفع باگ کلاسیک زمان‌بندی:** حل خطای رایج پرش ثانیه و فرمت نادرست `60,000` در میلی‌ثانیه‌ها.
+An ultra-fast, lightweight CLI utility for transcribing audio and video files into full text (`TXT`) and synchronized subtitles (`SRT`), powered by the **Intel OpenVINO** inference engine and the **Whisper Large V3 Turbo (FP16)** model.
 
 ---
 
-## 📥 پیش‌نیازها و نصب
+## ⚡ Hardware Compatibility
 
-### ۱. نصب FFmpeg (ضروری برای دیکود انواع مدیا)
-در ترمینال ویندوز (PowerShell) دستور زیر را اجرا کنید:
+Built with an automated hardware selection and fallback pipeline (`GPU -> NPU -> CPU`):
+
+- **Optimized for Intel Hardware:** Maximum hardware acceleration on integrated and discrete **Intel Arc GPUs (Xe / Xe2 architecture, including Arc 140V on Core Ultra / Lunar Lake series)** and **NPUs (Intel AI Boost)**.
+- **Universal Fallback for All Systems:** Gracefully falls back to **CPU** with zero crashes on non-Intel systems. Fully compatible with **AMD Ryzen** and modern x86/ARM processors via optimized vectorized instruction sets.
+
+---
+
+## ✨ Key Features & Engineering Highlights
+
+- **Zero-RAM Leak Audio Streaming:** Unlike traditional scripts that load multi-gigabyte audio files into memory, audio is streamed directly from disk in sliding windows. Memory footprint remains minimal (**under a few megabytes**) even on multi-hour lectures.
+- **Multi-Segment Boundary Deduplication:** Uses a **30-second sliding window with a 2-second overlap**, paired with a context-aware 3-segment deduplication algorithm (handling English and Persian punctuation) to eliminate repeated words across chunk boundaries.
+- **Language Drift Lock:** In auto-detect mode, the detected language is locked on the first voiced chunk, preventing erratic mid-lecture language switching during pauses or technical/medical terminology.
+- **Smart Silence & Hallucination Gating:** Real-time RMS/peak-energy evaluation skips silent stretches, completely suppressing phantom Whisper hallucinations (e.g. "Thank you", "Thanks for watching").
+- **Broadcast-Grade Subtitle Splitting:** Automatically splits over-long subtitle blocks into readable segments (max ~7 seconds / ~120 characters) adhering to professional subtitling guidelines.
+- **SRT Timestamp Precision:** Resolves the classic millisecond carry bug (e.g. invalid `00:00:60,000` timestamps).
+
+---
+
+## 📥 Prerequisites & Installation
+
+### 1. Install FFmpeg (Required for audio/video demuxing)
+On Windows (PowerShell):
 ```powershell
 winget install Gyan.FFmpeg
 ```
 
-### ۲. راه‌اندازی پروژه و محیط مجازی
+### 2. Setup Virtual Environment
 ```powershell
-# کلون کردن ریپازیتوری
+# Clone the repository
 git clone https://github.com/alrzfrscn/Transcribe-Master.git
 cd Transcribe-Master
 
-# ساخت و فعال‌سازی محیط مجازی
+# Create and activate virtual environment
 python -m venv .venv
 .venv\Scripts\activate
 
-# نصب پکیج‌ها
+# Install dependencies
 pip install -r requirements.txt
 ```
 
-### ۳. دریافت وزن‌های مدل (فقط یک‌بار)
-با اجرای اسکریپت زیر، مدل رسمی FP16 OpenVINO (~1.6GB) دریافت و در پوشه پروژه ذخیره می‌شود:
+### 3. Download Model Weights (One-time setup)
+Fetch the official FP16 OpenVINO model (~1.6GB) from Hugging Face Hub:
 ```powershell
 python download_model.py
 ```
 
 ---
 
-## 🚀 راهنمای استفاده
+## 🚀 Usage Guide
 
-### ۱. اجرای تعاملی (ساده‌ترین روش):
-اگر بدون هیچ آرگومانی اسکریپت را اجرا کنید، برنامه مسیر فایل و سپس زبان را با منوی خوانا از شما می‌پرسد (گزینه پیش‌فرض منو: انگلیسی):
+### 1. Interactive Mode (Default & Recommended):
+Run without arguments to interactively enter the file path and select a language from the menu (Default: English):
 ```powershell
 python run.py
 ```
 
-### ۲. اجرا با ورودی مستقیم فایل (انتخاب زبان از منو):
+### 2. Direct File Input (Language Menu Prompt):
 ```powershell
 python run.py "C:\Media\lecture.mp4"
 ```
 
-### ۳. اجرای خط فرمانی و خودکار (مناسب اسکریپت‌نویسی و اتوماسیون):
+### 3. Headless CLI / Automation:
 ```powershell
-# استخراج به زبان انگلیسی (پیش‌فرض)
+# Transcribe to English (Default)
 python run.py lecture.mp4 --lang en
 
-# استخراج به زبان فارسی
+# Transcribe to Persian
 python run.py lecture.mp4 --lang fa
 
-# تشخیص خودکار زبان + ذخیره در پوشه اختصاصی
+# Auto-detect language with custom output directory
 python run.py lecture.mp4 --lang auto --output-dir ./results
 
-# اجرا صریح روی پردازنده اصلی (CPU)
+# Explicit execution on CPU
 python run.py lecture.mp4 --lang en --device CPU
 ```
 
 ---
 
-## 📂 خروجی‌ها
+## 📂 Output Files
 
-به‌صورت پیش‌فرض، فایل‌ها دقیقاً در کنار فایل ورودی اصلی ایجاد می‌شوند:
-- **`filename.txt`** — متن کامل پیوسته بدون تکرار
-- **`filename.srt`** — زیرنویس استاندارد با شماره‌گذاری متوالی و زمان‌بندی دقیق
+By default, outputs are saved alongside the source media file:
+- **`filename.txt`** — Clean, continuous transcript without boundary repetitions.
+- **`filename.srt`** — Standard SRT subtitle file with sequential numbering and precise timestamps.
 
 ---
 
-## ⚙️ جدول پارامترهای خط فرمان (CLI Flags)
+## ⚙️ CLI Parameters
 
-| فلگ | مقدار پیش‌فرض | توضیحات |
+| Flag | Default | Description |
 | :--- | :---: | :--- |
-| `input` / `--input` | `None` | مسیر فایل صوتی یا تصویری ورودی (در صورت عدم ارسال، درخواست می‌شود) |
-| `--lang` | تعاملی (پیش‌فرض منو: `en`) / `en` | کد زبان گفتار (`en`, `fa`, `ar`, `tr`, `auto` یا هر کد دیگر ویسپر) |
-| `--device` | `auto` | انتخاب سخت‌افزار پردازش (`auto`, `GPU`, `NPU`, `CPU`) |
-| `--model-dir` | `./whisper-large-v3-turbo-fp16-ov` | مسیر پوشه فایل‌های مدل کامپایل‌شده OpenVINO |
-| `--output-dir` | مسیر فایل ورودی | مسیر سفارشی برای ذخیره‌سازی فایل‌های خروجی |
-| `--chunk-duration` | `30.0` | طول پنجره‌های پردازش صوت (برحسب ثانیه) |
-| `--overlap` | `2.0` | مدت‌زمان هم‌پوشانی پنجره‌ها جهت اتصال بدون‌درز کلمات (ثانیه) |
-| `--no-srt-split` | `False` | غیرفعال‌سازی شکستن خودکار زیرنویس‌های طولانی |
+| `input` / `--input` | `None` | Path to media file (prompts if omitted) |
+| `--lang` | Interactive (Menu default: `en`) / `en` | Speech language code (`en`, `fa`, `ar`, `tr`, `auto`, or any Whisper code) |
+| `--device` | `auto` | Target execution device (`auto`, `GPU`, `NPU`, `CPU`) |
+| `--model-dir` | `./whisper-large-v3-turbo-fp16-ov` | Directory containing OpenVINO model files |
+| `--output-dir` | Source file directory | Custom directory for output files |
+| `--chunk-duration` | `30.0` | Sliding window length in seconds |
+| `--overlap` | `2.0` | Window overlap duration in seconds for seamless word stitching |
+| `--no-srt-split` | `False` | Disable automatic splitting of long subtitle segments |
 
 ---
 
-## 🗂️ ساختار مخزن
+## 🗂️ Repository Structure
 
 ```text
-├── run.py                 # نقطه ورود و خط پردازش کامل برنامه
-├── download_model.py      # اسکریپت دریافت مدل از Hugging Face Hub
-├── requirements.txt       # کتابخانه‌ها و وابستگی‌های پایتون
-├── .gitignore             # مستثنی‌کردن مدل‌های حجیم، کش‌ها و محیط مجازی
-└── README.md              # راهنمای کامل پروژه
+├── run.py                 # Main unified execution pipeline
+├── download_model.py      # Automated model downloader
+├── requirements.txt       # Python dependencies
+├── .gitignore             # Excludes model weights, caches, and virtual env
+├── README.md              # English documentation (Primary)
+└── README_FA.md           # Persian documentation
 ```
 
 ---
 
-## 📝 لایسنس
-این پروژه تحت لایسنس **MIT** منتشر شده است و استفاده از آن برای اهداف شخصی و تجاری آزاد است.
+## 📝 License
+This project is licensed under the **MIT License** — free for personal and commercial use.
