@@ -1,4 +1,4 @@
-# 🎙️ Transcribe Master — Whisper OpenVINO
+# 🎙️ Transcribe Master — Whisper OpenVINO (beta version)
 
 ابزار فوق‌سریع و سبک برای تبدیل صوت و ویدیو به متن (`TXT`) و زیرنویس زمان‌بندی‌شده (`SRT`) با بهره‌گیری از موتور شتاب‌دهنده **Intel OpenVINO** و مدل قدرتمند **Whisper Large V3 Turbo (FP16)**.
 
